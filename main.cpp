@@ -1,13 +1,12 @@
 #include<iostream>
 #include<utility>
-#include"darray.h"
-#include"mystring.h"
-#include"linmap.h"
-#include"utils.h"
 #include<functional>
+#include"./lib/darray.h"
+#include"./lib/mystring.h"
+#include"./lib/linmap.h"
+#include"./lib/utils.h"
 
 using namespace clib;
-
 
 enum class CommandFlagType {
   Short, Long
@@ -30,11 +29,6 @@ struct CommandArg {
 using ParsedArgs = linmap<Text, Text>;
 
 class Command {
-  Text name;
-  darray<CommandArg> args;
-  darray<CommandFlag> flags;
-  Text description;
-  std::function<void(const ParsedArgs& args)> effect;
 public:
   Command() = default;
   Command(const Text& name);
@@ -44,6 +38,12 @@ public:
   Command& does(std::function<void(const ParsedArgs& args)> effect);
   
   void run(const darray<Text>& tokens) const;
+private:
+  Text name;
+  darray<CommandArg> args;
+  darray<CommandFlag> flags;
+  Text description;
+  std::function<void(const ParsedArgs& args)> effect;
 };
 
 Command::Command(const Text& name): name(name) { }
