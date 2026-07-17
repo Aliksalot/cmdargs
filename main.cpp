@@ -26,8 +26,6 @@ struct CommandArg {
   Text text;
 };
 
-using ParsedArgs = linmap<Text, Text>;
-
 class Command {
 public:
   Command() = default;
@@ -35,15 +33,27 @@ public:
   Command& arg(CommandArgType type, const Text& text);
   Command& flag(CommandFlagType type, const Text& text);
   Command& describe(const Text& text);
-  Command& does(std::function<void(const ParsedArgs& args)> effect);
+  Command& does(std::function
+    <void(const linmap<Text, Text>& args, const linmap<Text, Text>& flags)> effect
+  );
+
+  bool isValidArgList(const linmap<Text, Text>& list) const;
+  bool isValidFlag(const CommandFlag& flag) const;
+
+  Text getArgNameAt(std::size_t index) const;
+  std::size_t getRequiredArgCount() const;
   
-  void run(const darray<Text>& tokens) const;
+  void run(const linmap<Text, Text>& args, const linmap<Text, Text>& flags) const;
+
+  Text getName() const;
+  Text getDesc() const;
 private:
+  
   Text name;
   darray<CommandArg> args;
   darray<CommandFlag> flags;
   Text description;
-  std::function<void(const ParsedArgs& args)> effect;
+  std::function<void(const linmap<Text, Text>& args, const linmap<Text, Text>& flags)> effect;
 };
 
 Command::Command(const Text& name): name(name) { }
@@ -61,34 +71,63 @@ Command& Command::describe(const Text& text) {
   description = text;
   return *this;
 }
-Command& Command::does(std::function<void(const ParsedArgs& args)> effect) {
+Command& Command::does(
+  std::function <void(const linmap<Text, Text>& args, const linmap<Text, Text>& flags)> effect
+) {
   this->effect = effect;
   return *this;
+
 }
 
-void Command::run(const darray<Text>& tokens) const {
+void Command::run(const linmap<Text, Text>& args, const linmap<Text, Text>& flags) const {
+  effect(args, flags);
+}
 
-  for(auto& t: tokens) {
-    if(t[0] == '-' && t[1] == '-') {
-      
-    }else if(t[0] == '-') {
-      
+std::size_t Command::getRequiredArgCount() const {
+  std::size_t i{};
+  std::size_t argCount = args.size();
+  for(; i < argCount; ++ i) {
+    if(args[i].type == CommandArgType::Optional) break;
+  }
+  return i;
+}
+
+Text Command::getArgNameAt(std::size_t index) const {
+  return args[index].text;
+}
+
+Text Command::getName() const {
+  return name;
+}
+Text Command::getDesc() const {
+  return description;
+
+}
+
+bool Command::isValidArgList(const linmap<Text, Text>& list) const {
+  return list.count() >= getRequiredArgCount() && list.count() <= args.size();
+}
+
+bool Command::isValidFlag(const CommandFlag& flag) const {
+  for(auto& testFlag: flags) {
+    //std::cout << "Comparing " << testFlag.text << " == " << flag.text << std::endl;
+    if(testFlag.text == flag.text && testFlag.type == flag.type) {
+      return true;
     }
   }
-
-  //-mybool TRUE
-  //--promenliva STOINOST
-  //mycommand -toggle_bool --
-  TODO("run");
+  return false;
 }
 
 class CommandList {
-  darray<Command> commands;
 public:
   void add(Command&& cmd);
   void add(const Command& cmd);
   
   bool execute(const Text& command) const;
+private:
+  static darray<Text> tokenize(const Text& command);
+
+  darray<Command> commands;
 };
 
 void CommandList::add(const Command& cmd) {
@@ -99,10 +138,10 @@ void CommandList::add(Command&& cmd) {
   commands.add(clib::move(cmd));
 }
 
-bool CommandList::execute(const Text& command_) const {
+darray<Text> CommandList::tokenize(const Text& command_) {
   auto command = command_.trim();
-  darray<Text> words{};
-  words.add("");
+  darray<Text> tokens{};
+  tokens.add("");
   char delim = ' ';
   for(std::size_t i = 0; i < command.size(); ++i) {
     if(command[i] == '"') {
@@ -110,8 +149,9 @@ bool CommandList::execute(const Text& command_) const {
         delim = ' ';
       }else {
         if(i >= 1 && command[i - 1] != ' ') {
-          std::cout << "Couldn't parse command. Unexpected \"" << std::endl;
-          return false;
+          throw std::invalid_argument(
+            "Couldn't parse command. Unexpected \" at the end of string."
+          );
         }
         delim = '"';
       }
@@ -120,28 +160,111 @@ bool CommandList::execute(const Text& command_) const {
 
     if(delim == '"' && command[i] == '\\') {
       if(i < command.size() - 1) {
-        words[words.size() - 1] += command[++i];
+        tokens[tokens.size() - 1] += command[++i];
         continue;
       }else {
-        std::cout << "Couldn't parse command. Unexpected \\ at the end of string." << std::endl;
-        return false;
+        throw std::invalid_argument(
+          "Couldn't parse command. Unexpected \\ at the end of string."
+        );
       }
     }
 
     if(command[i] == delim) {
-      words.add("");
+      tokens.add("");
     }else {
-      words[words.size() - 1] += command[i];
+      tokens[tokens.size() - 1] += command[i];
     }
   }
+
   if(delim == '"') {
-    std::cout << "Couldn't parse command. Unclosed \"" << std::endl;
+    throw std::invalid_argument("Couldn't parse command. Unclosed \"");
+  }
+
+  return tokens;
+}
+
+bool CommandList::execute(const Text& command) const {
+  if(commands.size() == 0) {
+    std::cerr << "No commands present" << std::endl;
+    return false;
+  }
+  darray<Text> tokens = tokenize(command);
+  //Lex into opts, flags, params
+  if(tokens.size() == 0) {
+    std::cerr << "Couldn't execute empty command" << std::endl;
+    return false;
+  }
+  
+  const Command* cmd = nullptr;
+  for(const Command& cmd_candidate: commands) {
+    if(cmd_candidate.getName() == tokens[0]) {
+      cmd = &cmd_candidate;
+      break;
+    }
+  }
+
+  if(cmd == nullptr) {
+    std::cerr << "Unknown command." << std::endl;
+    return false;
+  }
+  
+  linmap<Text, Text> args;
+  linmap<Text, Text> flags;
+  for(std::size_t i = 1; i < tokens.size(); i ++) {
+    auto& token = tokens[i];
+    bool isLongFlag = token.size() >= 2 && token[0] == '-' && token[1] == '-';
+    bool isValidLongFlag = isLongFlag && token.size() >= 3 && token[2] != '-';
+
+    if(token[0] == '-' && i == tokens.size() - 1) {
+        std::cerr << 
+          "Couldn't parse flag " << token << " - reached end of token list" << std::endl;
+        return false;
+    }
+
+    if(isLongFlag) {
+      if(isValidLongFlag) {
+        auto trimmed = Text(token.raw() + 2);
+        if(cmd->isValidFlag(CommandFlag{CommandFlagType::Long, trimmed})){
+          flags.set(trimmed, tokens[++i]);
+          continue;
+        }else {
+          std::cerr << "Invalid long flag: " << token << std::endl;
+          return false;
+        }
+      }else {
+        std::cerr << "Invalid token: " << token << std::endl; 
+        return false;
+      }
+    }
+
+    bool isShortFlag = token.size() >= 1 && token[0] == '-';
+    bool isValidShortFlag = isShortFlag && token.size() >= 2 && token[1] != '-';
+
+    if(isShortFlag) {
+      if(isValidShortFlag) {
+        auto trimmed = Text(token.raw() + 1);
+        if(cmd->isValidFlag(CommandFlag{CommandFlagType::Short, trimmed})){
+          flags.set(trimmed, "");
+          continue;
+        }else {
+          std::cerr << "Invalid short flag: " << token << std::endl;
+          return false;
+        }
+      }else {
+        std::cerr << "Invalid token: " << token << std::endl; 
+        return false;
+      }
+    }
+
+    args.set(cmd->getArgNameAt(args.count()), token);
+  }
+
+  if(!cmd->isValidArgList(args)) {
+    std::cerr << "Invalid argument list" << std::endl;
     return false;
   }
 
-  for(std::size_t i = 0; i < words.size(); ++i) {
-    std::cout << words[i] << std::endl;
-  }
+  cmd->run(args, flags);
   return true;
 }
 
@@ -159,13 +282,13 @@ int main(void) {
     .arg(CommandArgType::Required, "required2")
     .arg(CommandArgType::Optional, "opt")
     .describe("Hello, this is command")
-    .does([](const ParsedArgs& args) {
+    .does([](const linmap<Text, Text>& args, const linmap<Text, Text>& flags) {
       std::cout << "Hello, I do nothing :<" << std::endl;
     });
 
   cl.add(cmd);
 
-  if(!cl.execute("hello --long-arg \"my \\\"very\\\" long argument\" -short-arg \"Hello\" required1 required2 [optional]")) {
+  if(!cl.execute("hello --long-arg \"my \\\"very\\\" long argument\" -short-arg required1 required2 optional")) {
     return 1;
   }
   

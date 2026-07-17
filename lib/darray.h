@@ -20,6 +20,8 @@ namespace clib {
       darray& add(const T& item);
       darray& add(T&& item);
 
+      darray& move_into(T&& item);
+
       darray(const darray& l);
       darray& operator=(const darray& l);
       darray(darray&& l) noexcept;

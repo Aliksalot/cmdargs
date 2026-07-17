@@ -6,7 +6,6 @@
 namespace clib {
   template<typename K, typename V>
   class linmap {
-    darray<tuple<K,V>> data;
   public:
     linmap& set(const K& key, const V& value);
     V& get(const K& key) const;
@@ -14,6 +13,10 @@ namespace clib {
     K& getKey(const V& value) const;
     bool hasKey(const K& key) const;
     bool hasValue(const K& value) const;
+
+    std::size_t count() const;
+  private:
+    darray<tuple<K,V>> data;
   };
 
   template<typename K, typename V>
@@ -25,6 +28,7 @@ namespace clib {
       }
     }
     data.add(tuple{key, value});
+    return *this;
   }
 
   template<typename K, typename V>
@@ -60,6 +64,12 @@ namespace clib {
     } catch(...) {
       return false;
     }
+  }
+
+  
+  template<typename K, typename V>
+  inline std::size_t linmap<K,V>::count() const {
+    return data.size();
   }
 
   template<typename K, typename V>

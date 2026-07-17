@@ -1,6 +1,6 @@
 #pragma once
 
-#define TODO(text) throw (text);
+#include<iostream>
 
 namespace clib {
 
