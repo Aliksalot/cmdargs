@@ -8,7 +8,7 @@ bool single(int argc, const char** argv){
   
   auto cmd = cmdargs::parseCommandLine(argc, argv)
     .flag(CommandFlagType::WithValue, "long-arg", "la", "This is description")
-    .flag(CommandFlagType::WithValue, "short-arg", "sa")
+    .flag(CommandFlagType::NoValue, "short-arg", "sa")
     .arg(CommandArgType::Required, "required1")
     .arg(CommandArgType::Required, "required2")
     .arg(CommandArgType::Optional, "opt")

@@ -221,7 +221,7 @@ inline void trim(std::string& s) {
       usage += "  OPTIONAL FLAGS\n";
       for(const auto& flag: flags) {
         usage += "    --" + flag.longName + " -" + flag.shortName
-          + (flag.type == CommandFlagType::WithValue ? " [value]" : "")
+          + (flag.type == CommandFlagType::WithValue ? " <value>" : "")
           + " - " 
           + (flag.description == "" ? "No description provided" : flag.description)
           + '\n';
@@ -232,9 +232,9 @@ inline void trim(std::string& s) {
       for(const auto& arg: args) {
         usage += "    ";
         if(arg.type == CommandArgType::Optional) {
-          usage += "<" + arg.text + ">";
+          usage += "[" + arg.text + "]";
         }else {
-          usage += arg.text;
+          usage += "<" + arg.text + ">";
         }
         usage += " - " + (arg.description == "" ? "No description provided" : arg.description) + '\n';
       }
@@ -337,7 +337,7 @@ inline void trim(std::string& s) {
               flags.emplace(flagPtr->longName, 
                 flagPtr->type == CommandFlagType::WithValue 
                   ? tokens[++i]
-                  : ""
+                  : "SET"
               );
               return FlagResult{true, true};
             }else {
