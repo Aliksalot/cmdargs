@@ -7,8 +7,8 @@ bool single(int argc, const char** argv){
   CommandArgs args, flags;
   
   auto cmd = cmdargs::parseCommandLine(argc, argv)
-    .flag(CommandFlagType::Long, "long-arg")
-    .flag(CommandFlagType::Short, "short-arg")
+    .flag(CommandFlagType::WithValue, "long-arg", "la", "This is description")
+    .flag(CommandFlagType::WithValue, "short-arg", "sa")
     .arg(CommandArgType::Required, "required1")
     .arg(CommandArgType::Required, "required2")
     .arg(CommandArgType::Optional, "opt")
@@ -16,10 +16,19 @@ bool single(int argc, const char** argv){
     .describe("Hello, this is command");
   std::cout << cmd.getUsage() << std::endl;
   bool result = cmd.into(args, flags);
-  
+
+  for(const auto& [k, v]: args) {
+    std::cout << k << ": " << v << "\n";
+  }
+  for(const auto& [k, v]: flags) {
+    std::cout << k << ": " << v << "\n";
+  }
+
   if(!result) {
     return 1;
   }
+
+
 
   return 0;
 }
@@ -31,8 +40,8 @@ bool cl_test() {
   cmdargs::Command cmd("hello");
   
   cmd
-    .flag(CommandFlagType::Long, "long-arg")
-    .flag(CommandFlagType::Short, "short-arg")
+    .flag(CommandFlagType::WithValue, "long-arg", "la", "This is description")
+    .flag(CommandFlagType::NoValue, "short-arg", "sa")
     .arg(CommandArgType::Required, "required1")
     .arg(CommandArgType::Required, "required2")
     .arg(CommandArgType::Optional, "opt")
@@ -52,7 +61,7 @@ bool cl_test() {
 
   cl.add(std::move(cmd));
 
-  if(!cl.execute("hello --long-arg \"my \\\"very\\\" long argument\" -short-arg required1 required2 optional")) {
+  if(!cl.execute("hello --long-arg \"my \\\"very\\\" long argument\" -sa required1 required2 optional")) {
     return 1;
   }
 

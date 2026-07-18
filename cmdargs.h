@@ -31,7 +31,7 @@ inline void trim(std::string& s) {
 
 //--------------DECLARATIONS---------------//
   enum class CommandFlagType {
-    Short, Long
+    WithValue, NoValue
   };
 
   enum class CommandArgType {
@@ -40,7 +40,8 @@ inline void trim(std::string& s) {
 
   struct CommandFlag {
     CommandFlagType type;
-    std::string text;
+    std::string longName;
+    std::string shortName;
     std::string description;
   };
 
@@ -60,12 +61,17 @@ inline void trim(std::string& s) {
     SimpleCommand(const std::string& name);
 
     Derived& arg(CommandArgType type, const std::string& text, const std::string& desc = "");
-    Derived& flag(CommandFlagType type, const std::string& text, const std::string& desc = "");
+    Derived& flag(
+      CommandFlagType type,
+      const std::string& longName,
+      const std::string& shortName,
+      const std::string& desc = ""
+    );
     Derived& giveName(const std::string& name);
     Derived& describe(const std::string& text);
 
     bool isValidArgList(const CommandArgs& list) const;
-    bool isValidFlag(const CommandFlag& flag) const;
+    const CommandFlag* getFlag(const std::string& flag, bool isShort = false) const;
 
     std::string getArgNameAt(std::size_t index) const;
     std::size_t getRequiredArgCount() const;
@@ -161,10 +167,11 @@ inline void trim(std::string& s) {
   template <typename Derived>
   inline Derived& SimpleCommand<Derived>::flag(
     CommandFlagType type,
-    const std::string& text,
+    const std::string& longName,
+    const std::string& shortName,
     const std::string& description
   ) {
-    flags.push_back(CommandFlag{type, text, description});
+    flags.push_back(CommandFlag{type, longName, shortName, description});
     return static_cast<Derived&>(*this);
   }
 
@@ -210,23 +217,27 @@ inline void trim(std::string& s) {
   template <typename Derived>
   inline std::string SimpleCommand<Derived>::getUsage() const {
     std::string usage = (name == "" ? "(Unnamed)" : name) + " - " + description + '\n';
-    usage += "  OPTIONAL FLAGS\n";
-    for(const auto& flag: flags) {
-      usage += std::string("    ") + (flag.type == CommandFlagType::Long ? "--" : "-") + flag.text
-        + (flag.type == CommandFlagType::Long ? " [value]" : "")
-        + " - " 
-        + (flag.description == "" ? "No description provided" : flag.description)
-        + '\n';
-    }
-    usage += "  POSITIONAL ARGS\n";
-    for(const auto& arg: args) {
-      usage += "    ";
-      if(arg.type == CommandArgType::Optional) {
-        usage += "<" + arg.text + ">";
-      }else {
-        usage += arg.text;
+    if(flags.size() > 0) {
+      usage += "  OPTIONAL FLAGS\n";
+      for(const auto& flag: flags) {
+        usage += "    --" + flag.longName + " -" + flag.shortName
+          + (flag.type == CommandFlagType::WithValue ? " [value]" : "")
+          + " - " 
+          + (flag.description == "" ? "No description provided" : flag.description)
+          + '\n';
       }
-      usage += " - " + (arg.description == "" ? "No description provided" : arg.description) + '\n';
+    }
+    if(args.size() > 0) {
+      usage += "  POSITIONAL ARGS\n";
+      for(const auto& arg: args) {
+        usage += "    ";
+        if(arg.type == CommandArgType::Optional) {
+          usage += "<" + arg.text + ">";
+        }else {
+          usage += arg.text;
+        }
+        usage += " - " + (arg.description == "" ? "No description provided" : arg.description) + '\n';
+      }
     }
     return usage;
   }
@@ -237,13 +248,16 @@ inline void trim(std::string& s) {
   }
 
   template <typename Derived>
-  inline bool SimpleCommand<Derived>::isValidFlag(const CommandFlag& flag) const {
+  inline const CommandFlag* SimpleCommand<Derived>::getFlag(const std::string& name, bool isShort) const {
     for(auto& testFlag: flags) {
-      if(testFlag.text == flag.text && testFlag.type == flag.type) {
-        return true;
+      if(
+        (isShort && testFlag.shortName == name) ||
+        (!isShort && testFlag.longName == name)
+      ) {
+        return &testFlag;
       }
     }
-    return false;
+    return nullptr;
   }
 
   template <typename Derived>
@@ -303,49 +317,56 @@ inline void trim(std::string& s) {
       if(token.length() == 0) {
         continue;
       }
-      bool isLongFlag = token.length() >= 2 && token[0] == '-' && token[1] == '-';
-      bool isValidLongFlag = isLongFlag && token.length() >= 3 && token[2] != '-';
 
       if(token[0] == '-' && i == tokens.size() - 1) {
           std::cerr << 
             "Couldn't parse flag " << token << " - reached end of token list" << std::endl;
           return false;
       }
-
-      if(isLongFlag) {
-        if(isValidLongFlag) {
-          auto trimmed = token.substr(2);
-          if(isValidFlag(CommandFlag{CommandFlagType::Long, trimmed})){
-            flags.emplace(trimmed, tokens[++i]);
-            continue;
+      
+      struct FlagResult {
+        bool status;
+        bool shouldContinue;
+      };
+      auto handleFlag = [this, &tokens, &flags, &token, &i]
+        (const std::string& trimmedName, bool isFlag, bool isValid, bool isShort) {
+        if(isFlag) {
+          if(isValid) {
+            auto flagPtr = getFlag(trimmedName, isShort);
+            if(flagPtr != nullptr){
+              flags.emplace(flagPtr->longName, 
+                flagPtr->type == CommandFlagType::WithValue 
+                  ? tokens[++i]
+                  : ""
+              );
+              return FlagResult{true, true};
+            }else {
+              std::cerr << "Unknown flag: " << token << std::endl;
+              return FlagResult{false};
+            }
           }else {
-            std::cerr << "Invalid long flag: " << token << std::endl;
-            return false;
+            std::cerr << "Invalid token: " << token << std::endl; 
+            return FlagResult{false};
           }
-        }else {
-          std::cerr << "Invalid token: " << token << std::endl; 
-          return false;
         }
-      }
+        return FlagResult{true,false};
+      };
+
+      bool isLongFlag = token.length() >= 2 && token[0] == '-' && token[1] == '-';
+      bool isValidLongFlag = isLongFlag && token.length() >= 3 && token[2] != '-';
+
+      FlagResult longResult = handleFlag(token.substr(2), isLongFlag, isValidLongFlag, false);
+
+      if(!longResult.status) return false;
+      if(longResult.shouldContinue) continue;
 
       bool isShortFlag = token.length() >= 1 && token[0] == '-';
       bool isValidShortFlag = isShortFlag && token.length() >= 2 && token[1] != '-';
 
-      if(isShortFlag) {
-        if(isValidShortFlag) {
-          auto trimmed = token.substr(1);
-          if(isValidFlag(CommandFlag{CommandFlagType::Short, trimmed})){
-            flags.emplace(trimmed, std::string(""));
-            continue;
-          }else {
-            std::cerr << "Invalid short flag: " << token << std::endl;
-            return false;
-          }
-        }else {
-          std::cerr << "Invalid token: " << token << std::endl; 
-          return false;
-        }
-      }
+      FlagResult shortResult = handleFlag(token.substr(1), isShortFlag, isValidShortFlag, true);
+
+      if(!shortResult.status) return false;
+      if(shortResult.shouldContinue) continue;
 
       if(args.size() >= getArgCount()) {
         std::cerr << "Number of placement arguments exceeds expected maximum" << std::endl;
