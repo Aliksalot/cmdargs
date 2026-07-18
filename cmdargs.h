@@ -29,8 +29,7 @@ inline void trim(std::string& s) {
   ltrim(s);
 }
 
-//DECLARATIONS
-//------------------------------------------//
+//--------------DECLARATIONS---------------//
   enum class CommandFlagType {
     Short, Long
   };
@@ -42,11 +41,13 @@ inline void trim(std::string& s) {
   struct CommandFlag {
     CommandFlagType type;
     std::string text;
+    std::string description;
   };
 
   struct CommandArg {
     CommandArgType type;
     std::string text;
+    std::string description;
   };
 //------------------------------------------//
   using CommandArgs = std::unordered_map<std::string, std::string>;
@@ -58,8 +59,9 @@ inline void trim(std::string& s) {
     SimpleCommand() = default;
     SimpleCommand(const std::string& name);
 
-    Derived& arg(CommandArgType type, const std::string& text);
-    Derived& flag(CommandFlagType type, const std::string& text);
+    Derived& arg(CommandArgType type, const std::string& text, const std::string& desc = "");
+    Derived& flag(CommandFlagType type, const std::string& text, const std::string& desc = "");
+    Derived& giveName(const std::string& name);
     Derived& describe(const std::string& text);
 
     bool isValidArgList(const CommandArgs& list) const;
@@ -71,6 +73,7 @@ inline void trim(std::string& s) {
 
     std::string getName() const;
     std::string getDesc() const;
+    std::string getUsage() const;
 
     bool lex_into(
       const std::vector<std::string>& tokens,
@@ -115,33 +118,64 @@ inline void trim(std::string& s) {
   inline CommandLine parseCommandLine(int argc, const char** argv) {
     return CommandLine(argc, argv);
   }
+
+//----------------CommandList----------------//
+  template <std::size_t CommandCount>
+  class CommandList {
+  public:
+    CommandList() = default;
+    void add(Command&& cmd);
+    
+    bool execute(const std::string& command) const;
+  private:
+
+    void assertCommandsExhausted() const;
+
+    std::array<Command, CommandCount> commands;
+    std::size_t last_command;
+  };
 //----------------IMPLEMENTATION-------------
 
 //----------------SimpleCommand--------------
 
   
   template <typename Derived>
-  SimpleCommand<Derived>::SimpleCommand(const std::string& name): name(name) { };
+  inline SimpleCommand<Derived>::SimpleCommand(const std::string& name): name(name) { };
 
   template <typename Derived>
-  Derived& SimpleCommand<Derived>::arg(CommandArgType type, const std::string& text) {
-    args.push_back(CommandArg{type, text});
+  inline Derived& SimpleCommand<Derived>::giveName(const std::string& name) {
+    this->name = name;
     return static_cast<Derived&>(*this);
   }
 
   template <typename Derived>
-  Derived& SimpleCommand<Derived>::flag(CommandFlagType type, const std::string& text) {
-    flags.push_back(CommandFlag{type, text});
+  inline Derived& SimpleCommand<Derived>::arg(
+    CommandArgType type,
+    const std::string& text,
+    const std::string& description
+  ) {
+    args.push_back(CommandArg{type, text, description});
     return static_cast<Derived&>(*this);
   }
+
   template <typename Derived>
-  Derived& SimpleCommand<Derived>::describe(const std::string& text) {
+  inline Derived& SimpleCommand<Derived>::flag(
+    CommandFlagType type,
+    const std::string& text,
+    const std::string& description
+  ) {
+    flags.push_back(CommandFlag{type, text, description});
+    return static_cast<Derived&>(*this);
+  }
+
+  template <typename Derived>
+  inline Derived& SimpleCommand<Derived>::describe(const std::string& text) {
     description = text;
     return static_cast<Derived&>(*this);
   }
 
   template <typename Derived>
-  std::size_t SimpleCommand<Derived>::getRequiredArgCount() const {
+  inline std::size_t SimpleCommand<Derived>::getRequiredArgCount() const {
     std::size_t i{};
     std::size_t argCount = args.size();
     for(; i < argCount; ++ i) {
@@ -151,12 +185,12 @@ inline void trim(std::string& s) {
   }
 
   template <typename Derived>
-  std::size_t SimpleCommand<Derived>::getArgCount() const {
+  inline std::size_t SimpleCommand<Derived>::getArgCount() const {
     return args.size();
   }
 
   template <typename Derived>
-  std::string SimpleCommand<Derived>::getArgNameAt(std::size_t index) const {
+  inline std::string SimpleCommand<Derived>::getArgNameAt(std::size_t index) const {
     if(index >= args.size()) {
       throw std::out_of_range("Trying to get arg name at index that exceeds arg count");
     }
@@ -164,23 +198,46 @@ inline void trim(std::string& s) {
   }
 
   template <typename Derived>
-  std::string SimpleCommand<Derived>::getName() const {
+  inline std::string SimpleCommand<Derived>::getName() const {
     return name;
   }
 
   template <typename Derived>
-  std::string SimpleCommand<Derived>::getDesc() const {
+  inline std::string SimpleCommand<Derived>::getDesc() const {
     return description;
-
   }
 
   template <typename Derived>
-  bool SimpleCommand<Derived>::isValidArgList(const CommandArgs& list) const {
+  inline std::string SimpleCommand<Derived>::getUsage() const {
+    std::string usage = (name == "" ? "(Unnamed)" : name) + " - " + description + '\n';
+    usage += "  OPTIONAL FLAGS\n";
+    for(const auto& flag: flags) {
+      usage += std::string("    ") + (flag.type == CommandFlagType::Long ? "--" : "-") + flag.text
+        + (flag.type == CommandFlagType::Long ? " [value]" : "")
+        + " - " 
+        + (flag.description == "" ? "No description provided" : flag.description)
+        + '\n';
+    }
+    usage += "  POSITIONAL ARGS\n";
+    for(const auto& arg: args) {
+      usage += "    ";
+      if(arg.type == CommandArgType::Optional) {
+        usage += "<" + arg.text + ">";
+      }else {
+        usage += arg.text;
+      }
+      usage += " - " + (arg.description == "" ? "No description provided" : arg.description) + '\n';
+    }
+    return usage;
+  }
+
+  template <typename Derived>
+  inline bool SimpleCommand<Derived>::isValidArgList(const CommandArgs& list) const {
     return list.size() >= getRequiredArgCount() && list.size() <= args.size();
   }
 
   template <typename Derived>
-  bool SimpleCommand<Derived>::isValidFlag(const CommandFlag& flag) const {
+  inline bool SimpleCommand<Derived>::isValidFlag(const CommandFlag& flag) const {
     for(auto& testFlag: flags) {
       if(testFlag.text == flag.text && testFlag.type == flag.type) {
         return true;
@@ -190,7 +247,7 @@ inline void trim(std::string& s) {
   }
 
   template <typename Derived>
-  std::vector<std::string> SimpleCommand<Derived>::tokenize(std::string command) {
+  inline std::vector<std::string> SimpleCommand<Derived>::tokenize(std::string command) {
     trim(command);
     std::vector<std::string> tokens{};
     tokens.push_back("");
@@ -236,7 +293,7 @@ inline void trim(std::string& s) {
   }
 
   template <typename Derived>
-  bool SimpleCommand<Derived>::lex_into(
+  inline bool SimpleCommand<Derived>::lex_into(
       const std::vector<std::string>& tokens,
       CommandArgs& args, CommandArgs& flags
   ) const {
@@ -306,62 +363,48 @@ inline void trim(std::string& s) {
     return true;
   }
 
-//-------------Command--------------------
-  Command::Command(const std::string& name): SimpleCommand(name) { }
+//-----------------Command---------------------
+  inline Command::Command(const std::string& name): SimpleCommand(name) { }
 
-  Command& Command::does(CommandHandler effect) {
+  inline Command& Command::does(CommandHandler effect) {
     this->effect = effect;
     return *this;
 
   }
 
-  void Command::run(const CommandArgs& args, const CommandArgs& flags) const {
+  inline void Command::run(const CommandArgs& args, const CommandArgs& flags) const {
     effect(args, flags);
   }
 
-//----------CommandLine----------------------
+//----------------CommandLine-------------------
 
-CommandLine::CommandLine(int argc, const char** argv)
-  : argc(argc), argv(argv) { }
+  inline CommandLine::CommandLine(int argc, const char** argv)
+    : argc(argc), argv(argv) { }
 
-bool CommandLine::into(CommandArgs& args, CommandArgs& flags) const {
-  auto arg_vector = std::vector<std::string>(argv + 1, argv + argc);
-  return lex_into(
-    arg_vector,
-    args, flags
-  );
-}
+  inline bool CommandLine::into(CommandArgs& args, CommandArgs& flags) const {
+    auto arg_vector = std::vector<std::string>(argv + 1, argv + argc);
+    return lex_into(
+      arg_vector,
+      args, flags
+    );
+  }
 
-//------------------------------------------//
-  template <std::size_t CommandCount>
-  class CommandList {
-  public:
-    CommandList() = default;
-    void add(Command&& cmd);
-    
-    bool execute(const std::string& command) const;
-  private:
-
-    void assertCommandsExhausted() const;
-
-    std::array<Command, CommandCount> commands;
-    std::size_t last_command;
-  };
+//----------------CommandList-------------------
 
   template <std::size_t CommandCount>
-  void CommandList<CommandCount>::assertCommandsExhausted() const {
+  inline void CommandList<CommandCount>::assertCommandsExhausted() const {
     assert(("Non-exhaustive list of commands", CommandCount == last_command));
   }
 
   template <std::size_t CommandCount>
-  void CommandList<CommandCount>::add(Command&& cmd) {
+  inline void CommandList<CommandCount>::add(Command&& cmd) {
     assert(("Max command count exhausted!", CommandCount != last_command));
     commands[last_command++] = std::move(cmd);
   }
 
 
   template <std::size_t CommandCount>
-  bool CommandList<CommandCount>::execute(const std::string& command) const {
+  inline bool CommandList<CommandCount>::execute(const std::string& command) const {
     assertCommandsExhausted();
     std::vector<std::string> tokens = SimpleCommand<Command>::tokenize(command);
     //Lex into opts, flags, params

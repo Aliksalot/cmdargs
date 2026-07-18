@@ -6,17 +6,18 @@ bool single(int argc, const char** argv){
 
   CommandArgs args, flags;
   
-  bool result = cmdargs::parseCommandLine(argc, argv)
+  auto cmd = cmdargs::parseCommandLine(argc, argv)
     .flag(CommandFlagType::Long, "long-arg")
     .flag(CommandFlagType::Short, "short-arg")
     .arg(CommandArgType::Required, "required1")
     .arg(CommandArgType::Required, "required2")
     .arg(CommandArgType::Optional, "opt")
-    .describe("Hello, this is command")
-    .into(args, flags);
+    .giveName("hello")
+    .describe("Hello, this is command");
+  std::cout << cmd.getUsage() << std::endl;
+  bool result = cmd.into(args, flags);
   
   if(!result) {
-    
     return 1;
   }
 
