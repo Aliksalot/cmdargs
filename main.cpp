@@ -2,6 +2,26 @@
 
 using namespace cmdargs;
 
+bool single(int argc, const char** argv){
+
+  CommandArgs args, flags;
+  
+  bool result = cmdargs::parseCommandLine(argc, argv)
+    .flag(CommandFlagType::Long, "long-arg")
+    .flag(CommandFlagType::Short, "short-arg")
+    .arg(CommandArgType::Required, "required1")
+    .arg(CommandArgType::Required, "required2")
+    .arg(CommandArgType::Optional, "opt")
+    .describe("Hello, this is command")
+    .into(args, flags);
+  
+  if(!result) {
+    
+    return 1;
+  }
+
+  return 0;
+}
 
 bool cl_test() {
   cmdargs::CommandList<1> cl;
@@ -38,7 +58,6 @@ bool cl_test() {
   return 0;
 }
 
-int main(int argc, char** argv) {
-
+int main(int argc, const char** argv) {
   return single(argc, argv);
 }
