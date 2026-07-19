@@ -113,12 +113,13 @@ inline void trim(std::string& s) {
 
     bool into(CommandArgs& args, CommandArgs& flags) const;
 
-    CommandLine& intoFlags(CommandArgs& args, CommandArgs& flags) const;
-    CommandLine& intoArgs(CommandArgs& args, CommandArgs& flags) const;
+    CommandLine& includeHelp();
     
     private:
       int argc;
       const char** argv;
+
+      bool helpIncluded = false;
   };
 
   inline CommandLine parseCommandLine(int argc, const char** argv) {
@@ -142,7 +143,7 @@ inline void trim(std::string& s) {
     std::array<Command, CommandCount + 1> commands;
     std::size_t last_command;
 
-    bool helpIncluded;
+    bool helpIncluded = false;
   };
 //----------------IMPLEMENTATION-------------
 
@@ -253,7 +254,7 @@ inline void trim(std::string& s) {
 
   template <typename Derived>
   inline const CommandFlag* SimpleCommand<Derived>::getFlag(const std::string& name, bool isShort) const {
-    for(auto& testFlag: flags) {
+    for(const auto& testFlag: flags) {
       if(
         (isShort && testFlag.shortName == name) ||
         (!isShort && testFlag.longName == name)
@@ -322,11 +323,6 @@ inline void trim(std::string& s) {
         continue;
       }
 
-      if(token[0] == '-' && i == tokens.size() - 1) {
-          std::cerr << 
-            "Couldn't parse flag " << token << " - reached end of token list" << std::endl;
-          return false;
-      }
       
       struct FlagResult {
         bool status;
@@ -338,6 +334,15 @@ inline void trim(std::string& s) {
           if(isValid) {
             auto flagPtr = getFlag(trimmedName, isShort);
             if(flagPtr != nullptr){
+              if(
+                flagPtr->type == CommandFlagType::WithValue 
+                && token[0] == '-' 
+                && i == tokens.size() - 1
+              ) {
+                  std::cerr << 
+                    "Couldn't parse flag " << token << " - reached end of token list" << std::endl;
+                  return FlagResult{false};
+              }
               flags.emplace(flagPtr->longName, 
                 flagPtr->type == CommandFlagType::WithValue 
                   ? tokens[++i]
@@ -379,7 +384,6 @@ inline void trim(std::string& s) {
       args.emplace(getArgNameAt(args.size()), token);
     }
 
-
     if(!isValidArgList(args)) {
       std::cerr << "Invalid argument list" << std::endl;
       return false;
@@ -408,22 +412,39 @@ inline void trim(std::string& s) {
 
   inline bool CommandLine::into(CommandArgs& args, CommandArgs& flags) const {
     auto arg_vector = std::vector<std::string>(argv + 1, argv + argc);
-    return lex_into(
-      arg_vector,
-      args, flags
-    );
+    if(!lex_into(arg_vector, args, flags)) {
+      std::cout << "Couldn't execute command. Correct usage: \n";
+      std::cout << getUsage();
+      return false;
+    }
+    if(helpIncluded && flags.count("help") != 0) {
+      std::cout << getUsage();
+      std::exit(0);
+    }
+
+    return true;
+  }
+
+  inline CommandLine& CommandLine::includeHelp() {
+    helpIncluded = true;
+    flag(CommandFlagType::NoValue, "help", "h", "Provides usage");
+    return *this;
   }
 
 //----------------CommandList-------------------
 
   template <std::size_t CommandCount>
   inline void CommandList<CommandCount>::assertCommandsExhausted() const {
-    assert(("Non-exhaustive list of commands", CommandCount == last_command));
+    if(CommandCount != last_command) {
+      throw std::logic_error("Non-exhaustive list of commands");
+    }
   }
 
   template <std::size_t CommandCount>
   inline void CommandList<CommandCount>::add(Command&& cmd) {
-    assert(("Max command count exhausted!", CommandCount != last_command));
+    if(CommandCount == last_command) {
+      throw std::logic_error("Max command count exhausted!");
+    }
     if(cmd.getName() == "help" && helpIncluded) {
       std::cerr << "Can't redefine help command! If you wish to do so, don't call the .includeHelp function on the command list" << std::endl;
       return;
@@ -476,13 +497,31 @@ inline void trim(std::string& s) {
 
   template <std::size_t CommandCount>
   inline CommandList<CommandCount>& CommandList<CommandCount>::includeHelp() {
+    for(const auto& cmd: commands) {
+      if(cmd.getName() == "help") {
+        std::cout << "Couldn't include the default help command, since a custom \"help\" has already been defined. " << std::endl;
+        return *this;
+      }
+    }
     helpIncluded = true;
 
     commands[CommandCount] = 
       Command("help")
       .describe("Displays the list of commands")
-      .arg(CommandArgType::Required, "command", "If provided will print the usage for the specified command. ")
+      .arg(CommandArgType::Optional, "command-name", "If provided will print the usage for the specified command. ")
       .does([this](const CommandArgs& args, const CommandArgs&){
+        auto it = args.find("command-name");
+        auto& cmd_name = it->second;
+        if(it != args.end()) {
+          for(const auto& cmd: commands) {
+            if(cmd.getName() == cmd_name) {
+              std::cout << cmd.getUsage();
+              return;
+            }
+          }
+          std::cerr << "Unknown command: " << cmd_name << std::endl;
+          return;
+        }
         for(const auto& cmd: commands) {
           std::cout << cmd.getUsage();
         }

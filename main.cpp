@@ -13,16 +13,18 @@ bool single(int argc, const char** argv){
     .arg(CommandArgType::Required, "required2")
     .arg(CommandArgType::Optional, "opt")
     .giveName("hello")
-    .describe("Hello, this is command");
-  std::cout << cmd.getUsage() << std::endl;
+    .describe("Hello, this is command")
+    .includeHelp();
   bool result = cmd.into(args, flags);
 
+  /*
   for(const auto& [k, v]: args) {
     std::cout << k << ": " << v << "\n";
   }
   for(const auto& [k, v]: flags) {
     std::cout << k << ": " << v << "\n";
   }
+  */
 
   if(!result) {
     return 1;
@@ -75,6 +77,6 @@ bool cl_test() {
 }
 
 int main(int argc, const char** argv) {
-  return cl_test();
-  //return single(argc, argv);
+  //return cl_test();
+  return single(argc, argv);
 }
