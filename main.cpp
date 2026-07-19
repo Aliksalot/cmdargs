@@ -61,7 +61,13 @@ bool cl_test() {
 
   cl.add(std::move(cmd));
 
-  if(!cl.execute("hello --long-arg \"my \\\"very\\\" long argument\" -sa required1 required2 optional")) {
+  cl.includeHelp();
+
+   if(!cl.execute("hello --long-arg \"my \\\"very\\\" long argument\" -sa required1 required2 optional")) {
+     return 1;
+   }
+
+  if(!cl.execute("help command ddd")) {
     return 1;
   }
 
@@ -69,5 +75,6 @@ bool cl_test() {
 }
 
 int main(int argc, const char** argv) {
-  return single(argc, argv);
+  return cl_test();
+  //return single(argc, argv);
 }

@@ -133,12 +133,16 @@ inline void trim(std::string& s) {
     void add(Command&& cmd);
     
     bool execute(const std::string& command) const;
+
+    CommandList& includeHelp();
   private:
 
     void assertCommandsExhausted() const;
 
-    std::array<Command, CommandCount> commands;
+    std::array<Command, CommandCount + 1> commands;
     std::size_t last_command;
+
+    bool helpIncluded;
   };
 //----------------IMPLEMENTATION-------------
 
@@ -420,6 +424,10 @@ inline void trim(std::string& s) {
   template <std::size_t CommandCount>
   inline void CommandList<CommandCount>::add(Command&& cmd) {
     assert(("Max command count exhausted!", CommandCount != last_command));
+    if(cmd.getName() == "help" && helpIncluded) {
+      std::cerr << "Can't redefine help command! If you wish to do so, don't call the .includeHelp function on the command list" << std::endl;
+      return;
+    }
     commands[last_command++] = std::move(cmd);
   }
 
@@ -443,7 +451,11 @@ inline void trim(std::string& s) {
     }
 
     if(cmd == nullptr) {
-      std::cerr << "Unknown command." << std::endl;
+      std::cerr << "Unknown command. .";
+      if(helpIncluded) {
+        std::cout << "Check for list of commands via \"help\".";
+      }
+      std::cout << std::endl;
       return false;
     }
     
@@ -451,10 +463,31 @@ inline void trim(std::string& s) {
     CommandArgs flags;
 
     std::vector<std::string> rest(tokens.begin() + 1, tokens.end());
-    cmd->lex_into(rest, args, flags);
 
+    if(!cmd->lex_into(rest, args, flags)) {
+      std::cout << "Couldn't execute command. Correct usage: \n";
+      std::cout << cmd->getUsage();
+      return false;
+    }
 
     cmd->run(args, flags);
     return true;
+  }
+
+  template <std::size_t CommandCount>
+  inline CommandList<CommandCount>& CommandList<CommandCount>::includeHelp() {
+    helpIncluded = true;
+
+    commands[CommandCount] = 
+      Command("help")
+      .describe("Displays the list of commands")
+      .arg(CommandArgType::Required, "command", "If provided will print the usage for the specified command. ")
+      .does([this](const CommandArgs& args, const CommandArgs&){
+        for(const auto& cmd: commands) {
+          std::cout << cmd.getUsage();
+        }
+      });
+
+    return *this;
   }
 }
