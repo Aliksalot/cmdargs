@@ -77,9 +77,6 @@ inline void trim(std::string& s) {
       
       std::optional<std::string> valueOpt(const std::string& k) const;
 
-      /// Calls fallback and returns a "" if no such value is present
-      std::string value(const std::string& k, std::function<void()> fallback) const;
-
       /// Returns fallback's value
       std::string value(const std::string& k, std::function<std::string()> fallback) const;
       
