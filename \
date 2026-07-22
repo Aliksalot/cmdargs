@@ -39,12 +39,6 @@ inline void trim(std::string& s) {
     Optional, Required
   };
 
-  /// Command flag construction is simple. You always provide a long name
-  /// used via --long-name and a short name, used via -ln (short for long-name).
-  /// If type is set to CommandFlagType::WithValue, then usage is via --my-param <some value>,
-  /// otherwise (in the CommandFlagType::NoValue case) usage is via --my-param, which sets a 
-  /// boolean flag.
-  /// Description can be skipped if don't plan on providing helpful usage to the users
   struct CommandFlag {
     CommandFlagType type;
     std::string longName;
@@ -52,18 +46,14 @@ inline void trim(std::string& s) {
     std::string description;
   };
 
-  /// Args can be optional or not optional, depending on CommandArgType. By arg here is meant
-  /// a positional argument. Optional args always have to appear at the end of lists.
   struct CommandArg {
     CommandArgType type;
     std::string text;
     std::string description;
   };
-
-  /// Provides an abstraction over a std::unordered_map for ease of use.
-  /// This is the output format for the command parsing that this library uses
   class CommandArgs {
     public:
+
       CommandArgs& set(const std::string& k, const std::string& v);
       CommandArgs& set(const std::string& k);
       CommandArgs& remove(const std::string& k);
@@ -93,20 +83,6 @@ inline void trim(std::string& s) {
 //------------------------------------------//
   using CommandHandler = std::function<void(const CommandArgs& args, const CommandArgs& flags)>;
 //------------------------------------------//
-  
-
-  /// SimpleCommand provides the general interface for building command formats. You can check
-  /// examples, but the general idea is that you can chain args and flags, as well as other options.
-  /// Quick example:
-  /// cmdargs::fromArgv(argc, argv)
-  /// .flag(cmdargs::CommandFlagType::NoValue, "my-flag", "mf", "This is my first flag");
-  /// .flag(cmdargs::CommandFlagType::WithValue, "other-flag", "of", "This is my other flag. This one has a required value!");
-  /// .param(cmdargs::CommandArgType::Required, "req-param1", "This param is required.")
-  /// .param(cmdargs::CommandArgType::Required, "req-param2", "This param is also quite required.")
-  /// .includeHelp() //Includes --help -h as a flag that provides usage for the command
-  /// .into(args, flags);
-  /// This class doesn't provide a way to use the parsed arguments. For that you must use some
-  /// derivation, check Command or CommandLine
   template <typename Derived>
   class SimpleCommand {
   public:
@@ -123,7 +99,6 @@ inline void trim(std::string& s) {
     Derived& giveName(const std::string& name);
     Derived& describe(const std::string& text);
 
-    //Mostly implementation details
     bool isValidArgList(const CommandArgs& list) const;
     const CommandFlag* getFlag(const std::string& flag, bool isShort = false) const;
 
@@ -149,37 +124,24 @@ inline void trim(std::string& s) {
     std::string description;
   };
 //------------------Command-------------------//
-  
-  /// This class's main function is to populate a CommandList. Check loop-multiple-commands.cpp
-  /// example to understand the main ideology.
   class Command : public SimpleCommand<Command> {
   public:
     Command() = default;
     Command(const std::string& name);
-
-    /// Provides a callback function to be executed on .run
     Command& does(CommandHandler effect);
     
-    /// Executes the provided callback function
     void run(const CommandArgs& args, const CommandArgs& flags) const;
   private:
     CommandHandler effect;
   };
 //----------------CommandLine----------------//
-  
-  /// This provides the most general command line parsing solution. Via ::fromArgv(...)
-  /// you can build your command by passing in standart argc and argv, and later parse them into
-  /// CommandArgs via the .into method. Include help short-circuits the whole application via
-  /// std::exit whenever --help or -h is provided, and executes a auto-generated usage screen
   class CommandLine : public SimpleCommand<CommandLine> {
   public:
     CommandLine() = delete;
     CommandLine(int argc, const char** argv);
 
-    /// Parses argc and argv, acorrding to the custom scheme, into args and flags
     bool into(CommandArgs& args, CommandArgs& flags) const;
 
-    /// Includes --help and -h
     CommandLine& includeHelp();
     
     private:
@@ -189,31 +151,19 @@ inline void trim(std::string& s) {
       bool helpIncluded = false;
   };
 
-  /// Makes your code more readable
   inline CommandLine fromArgv(int argc, const char** argv) {
     return CommandLine(argc, argv);
   }
 
 //----------------CommandList----------------//
-  
-  /// Helps you build command line interfaces, via keeping a continous loop, like the pgsql
-  /// command line tool. Check loop-multiple-commands.cpp for how to use it.
-  /// After providing a command count you MUST exhaust it via .add before you can start doing
-  /// .execute's
   template <std::size_t CommandCount>
   class CommandList {
   public:
     CommandList() = default;
-
-    /// Copies a command into the list of commands.
     void add(Command&& cmd);
     
-    /// Parses and lexes the input command. If an error occurs it will print it into std::cerr and
-    /// return false. Otherwise returns true.
     bool execute(const std::string& command) const;
 
-    /// Includes custom help command with the signature
-    ///   help <command-name> - Provides the usage for specified command, or for all of them
     CommandList& includeHelp();
   private:
 
@@ -557,7 +507,7 @@ inline void trim(std::string& s) {
       std::cout << getUsage();
       return false;
     }
-    if(helpIncluded && flags.has("help") != 0) {
+    if(helpIncluded && flags.count("help") != 0) {
       std::cout << getUsage();
       std::exit(0);
     }
@@ -650,9 +600,9 @@ inline void trim(std::string& s) {
       .describe("Displays the list of commands")
       .arg(CommandArgType::Optional, "command-name", "If provided will print the usage for the specified command. ")
       .does([this](const CommandArgs& args, const CommandArgs&){
-        auto opt = args.valueOpt("command-name");
-        if(opt.has_value()) {
-          auto& cmd_name = opt.value();
+        auto it = args.find("command-name");
+        auto& cmd_name = it->second;
+        if(it != args.end()) {
           for(const auto& cmd: commands) {
             if(cmd.getName() == cmd_name) {
               std::cout << cmd.getUsage();

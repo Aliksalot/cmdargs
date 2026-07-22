@@ -6,7 +6,7 @@ bool single(int argc, const char** argv){
 
   CommandArgs args, flags;
   
-  auto cmd = cmdargs::parseCommandLine(argc, argv)
+  auto cmd = cmdargs::fromArgv(argc, argv)
     .flag(CommandFlagType::WithValue, "long-arg", "la", "This is description")
     .flag(CommandFlagType::NoValue, "short-arg", "sa")
     .arg(CommandArgType::Required, "required1")
@@ -40,10 +40,10 @@ bool cl_test() {
       const CommandArgs& args,
       const CommandArgs& flags
     ) {
-      for(const auto& [k, v]: args) {
+      for(const auto& [k, v]: args.data()) {
         std::cout << k << ": " << v << "\n";
       }
-      for(const auto& [k, v]: flags) {
+      for(const auto& [k, v]: flags.data()) {
         std::cout << k << ": " << v << "\n";
       }
       std::cout << "Hello, I do nothing :<" << std::endl;
