@@ -213,7 +213,7 @@ inline void trim(std::string& s) {
     bool execute(const std::string& command) const;
 
     /// Includes custom help command with the signature
-    ///   help <command-name> - Provides the usage for specified command, or for all of them
+    ///   help [command-name] - Provides the usage for specified command, or for all of them
     CommandList& includeHelp();
   private:
 
