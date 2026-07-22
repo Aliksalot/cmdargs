@@ -17,20 +17,9 @@ bool single(int argc, const char** argv){
     .includeHelp();
   bool result = cmd.into(args, flags);
 
-  /*
-  for(const auto& [k, v]: args) {
-    std::cout << k << ": " << v << "\n";
-  }
-  for(const auto& [k, v]: flags) {
-    std::cout << k << ": " << v << "\n";
-  }
-  */
-
   if(!result) {
     return 1;
   }
-
-
 
   return 0;
 }
@@ -38,7 +27,6 @@ bool single(int argc, const char** argv){
 bool cl_test() {
   cmdargs::CommandList<1> cl;
   
-  //hello --long-arg myverylongarg --short-arg s required1 required2 [optional]
   cmdargs::Command cmd("hello");
   
   cmd

@@ -122,7 +122,7 @@ inline void trim(std::string& s) {
       bool helpIncluded = false;
   };
 
-  inline CommandLine parseCommandLine(int argc, const char** argv) {
+  inline CommandLine fromArgv(int argc, const char** argv) {
     return CommandLine(argc, argv);
   }
 
