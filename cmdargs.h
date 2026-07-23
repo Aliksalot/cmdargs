@@ -152,7 +152,7 @@ inline void trim(std::string& s) {
   class Command : public SimpleCommand<Command> {
   public:
     Command() = default;
-    Command(const std::string& name);
+    explicit Command(const std::string& name);
 
     /// Provides a callback function to be executed on .run
     Command& does(CommandHandler effect);
@@ -202,8 +202,9 @@ inline void trim(std::string& s) {
   public:
     CommandList() = default;
 
-    /// Copies a command into the list of commands.
-    void add(Command&& cmd);
+    /// Moves a command into the list of commands.
+    Command& add(Command&& cmd);
+    Command& add(const std::string& name);
     
     /// Parses and lexes the input command. If an error occurs it will print it into std::cerr and
     /// return false. Otherwise returns true.
@@ -578,15 +579,23 @@ inline void trim(std::string& s) {
   }
 
   template <std::size_t CommandCount>
-  inline void CommandList<CommandCount>::add(Command&& cmd) {
+  inline Command& CommandList<CommandCount>::add(Command&& cmd) {
     if(CommandCount == last_command) {
       throw std::logic_error("Max command count exhausted!");
     }
     if(cmd.getName() == "help" && helpIncluded) {
-      std::cerr << "Can't redefine help command! If you wish to do so, don't call the .includeHelp function on the command list" << std::endl;
-      return;
+      throw std::logic_error(
+        "Can't redefine help command! If you wish to do so, don't call the .includeHelp function on the command list"
+      );
     }
-    commands[last_command++] = std::move(cmd);
+    Command& lastCommand = commands[last_command];
+    lastCommand = std::move(cmd);
+    return lastCommand;
+  }
+
+  template <std::size_t CommandCount>
+  inline Command& CommandList<CommandCount>::add(const std::string& name) {
+    return add(std::move(Command(name)));
   }
 
 
