@@ -590,6 +590,7 @@ inline void trim(std::string& s) {
     }
     Command& lastCommand = commands[last_command];
     lastCommand = std::move(cmd);
+    last_command ++;
     return lastCommand;
   }
 
