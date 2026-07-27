@@ -464,7 +464,7 @@ inline void trim(std::string& s) {
       
       struct FlagResult {
         bool status;
-        bool shouldContinue;
+        bool shouldContinue = false;
       };
       auto handleFlag = [this, &tokens, &flags, &token, &i]
         (const std::string& trimmedName, bool isFlag, bool isValid, bool isShort) {
