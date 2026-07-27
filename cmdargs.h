@@ -619,9 +619,9 @@ inline void trim(std::string& s) {
     }
 
     if(cmd == nullptr) {
-      std::cerr << "Unknown command. .";
+      std::cerr << "Unknown command: " << tokens[0];
       if(helpIncluded) {
-        std::cout << "Check for list of commands via \"help\".";
+        std::cout << "\nCheck for list of commands via \"help\".";
       }
       std::cout << std::endl;
       return false;
