@@ -226,17 +226,17 @@ inline void trim(std::string& s) {
 
 //----------------CommandArgs---------------
 
-  CommandArgs& CommandArgs::set(const std::string& k, const std::string& v) {
+  inline CommandArgs& CommandArgs::set(const std::string& k, const std::string& v) {
     m_data.emplace(k, v);
     return *this;
   }
 
-  CommandArgs& CommandArgs::set(const std::string& k) {
+  inline CommandArgs& CommandArgs::set(const std::string& k) {
     m_data.emplace(k, "SET");
     return *this;
   }
 
-  CommandArgs& CommandArgs::remove(const std::string& k) {
+  inline CommandArgs& CommandArgs::remove(const std::string& k) {
     auto it = m_data.find(k);
     if(it != m_data.end()) {
       m_data.erase(it);
@@ -244,11 +244,11 @@ inline void trim(std::string& s) {
     return *this;
   }
 
-  bool CommandArgs::has(const std::string& k) const {
+  inline bool CommandArgs::has(const std::string& k) const {
     return m_data.count(k);
   }
 
-  std::string CommandArgs::value(const std::string& k) const {
+  inline std::string CommandArgs::value(const std::string& k) const {
     auto maybeValue = valueOpt(k);
     if(maybeValue.has_value()) {
       return maybeValue.value();
@@ -257,7 +257,7 @@ inline void trim(std::string& s) {
     throw std::logic_error(std::string("No such key present in this CommandArgs"));
   }
 
-  std::optional<std::string> CommandArgs::valueOpt(const std::string& k) const {
+  inline std::optional<std::string> CommandArgs::valueOpt(const std::string& k) const {
     auto it = m_data.find(k);
     if(it != m_data.end()) {
       return it->second;
@@ -266,7 +266,7 @@ inline void trim(std::string& s) {
     return {};
   }
 
-  std::string CommandArgs::value(
+  inline std::string CommandArgs::value(
     const std::string& k, std::function<std::string()> fallback
   ) const {
     auto maybeValue = valueOpt(k);
@@ -277,11 +277,11 @@ inline void trim(std::string& s) {
     return fallback();
   }
 
-  const std::unordered_map<std::string, std::string>& CommandArgs::data() const {
+  inline const std::unordered_map<std::string, std::string>& CommandArgs::data() const {
     return m_data;
   }
 
-  std::size_t CommandArgs::size() const {
+  inline std::size_t CommandArgs::size() const {
     return m_data.size();
   }
 
