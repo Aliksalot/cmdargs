@@ -1,5 +1,7 @@
 #pragma once
 
+//Napravih promyana
+
 #include<vector>
 #include<array>
 #include<string>
